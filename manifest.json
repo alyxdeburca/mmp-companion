@@ -15,7 +15,7 @@
     "cookies",
     "storage",
     "activeTab",
-    "tabs",
+    "tabs"
   ],
   "browser_specific_settings": {
     "gecko": {
