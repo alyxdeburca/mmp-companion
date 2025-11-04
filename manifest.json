@@ -16,6 +16,14 @@
     "storage",
     "activeTab",
     "tabs",
-    "debugger"
-  ]
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "@mmp_companion",
+      "data_collection_permissions": {
+        "required": ["browsingActivity"],
+        "optional": ["technicalAndInteraction"]
+      }
+    }
+}
 }
