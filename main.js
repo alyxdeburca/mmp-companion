@@ -109,7 +109,7 @@ actions.show['https://makerworld.com'] = async () => {
     for (const i in tabs) {
         const url = new URL(tabs[i].url);
         if (url.origin === 'https://makerworld.com' && !url.pathname.includes("/models/")) {
-            msgCmp.innerHTML = "This is not an importable project page.";
+            msgCmp.textContent = "This is not an importable project page.";
             importCMP.style.display = 'none';
         }
     }
@@ -124,9 +124,9 @@ actions.show['https://makerworld.com'] = async () => {
                 const response = await send(payload);
                 if (response.code !== 200) {
                     const data = await response.json();
-                    msgCmp.innerHTML = data.message;
+                    msgCmp.textContent = data.message;
                 } else {
-                    msgCmp.innerHTML = "Great Success!";
+                    msgCmp.textContent = "Great Success!";
                 }
             }
         }
@@ -143,7 +143,7 @@ actions.show['https://www.thingiverse.com'] = async () => {
     for (const i in tabs) {
         const url = new URL(tabs[i].url);
         if (url.origin === 'https://www.thingiverse.com' && !url.pathname.includes("/thing:")) {
-            msgCmp.innerHTML = "This is not an importable project page.";
+            msgCmp.textContent = "This is not an importable project page.";
             importCMP.style.display = 'none';
         }
     }
@@ -156,9 +156,9 @@ actions.show['https://www.thingiverse.com'] = async () => {
                 const response = await send(payload);
                 if (response.code !== 200) {
                     const data = await response.json();
-                    msgCmp.innerHTML = data.message;
+                    msgCmp.textContent = data.message;
                 } else {
-                    msgCmp.innerHTML = "Great Success!";
+                    msgCmp.textContent = "Great Success!";
                 }
             }
         }
