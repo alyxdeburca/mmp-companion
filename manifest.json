@@ -15,7 +15,6 @@
     "cookies",
     "storage",
     "activeTab",
-    "tabs",
-    "debugger"
+    "tabs"
   ]
 }
