@@ -9,3 +9,8 @@
 **Vulnerability:** The extension used `.innerHTML` to display messages from external APIs and status updates.
 **Learning:** If the backend or a spoofed backend provides malicious HTML/script in its response, it could execute in the context of the extension, which has broad permissions (cookies, storage, etc.).
 **Prevention:** Use `.textContent` instead of `.innerHTML` when rendering data that does not explicitly require HTML formatting, especially when the data source is external or configurable.
+
+## 2026-02-25 - Sensitive Data Exposure in Developer Console
+**Vulnerability:** The extension was logging full authentication cookies and configuration objects (including potential API keys) to the browser's developer console.
+**Learning:** Browser extensions that handle sensitive session data must avoid all forms of logging that could expose this data. Even if intended for debugging, such logs can be captured by other tools or seen by anyone with access to the browser, leading to session hijacking or credential theft.
+**Prevention:** Implement a strict "no-log" policy for sensitive objects. Use targeted logging for debugging only, and ensure all production-ready code has sensitive logs removed. Sanitizing logs or using a dedicated secure logging framework is preferred if logging is necessary.
