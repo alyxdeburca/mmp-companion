@@ -60,17 +60,20 @@ const showInit = async (origin) => {
             }
 
             const fetchedSettings = await response.json();
+            const rawBackend = fetchedSettings.local_backend || fetchedSettings.localBackend;
 
-            // Handle both local_backend and localBackend
-            settings = fetchedSettings.local_backend
-                ? fetchedSettings
-                : { ...fetchedSettings, local_backend: fetchedSettings.localBackend };
+            if (rawBackend && typeof rawBackend === "string") {
+                const backendUrl = new URL(rawBackend, origin);
+                const expectedOrigin = new URL(origin).origin;
 
-            if (settings.local_backend && typeof settings.local_backend === "string") {
-                if (settings.local_backend.startsWith("/")) {
-                    settings.local_backend = origin + settings.local_backend;
+                // Security check: ensure the backend's origin matches the verified origin
+                if (backendUrl.origin !== expectedOrigin) {
+                    console.error("Security Error: Backend origin does not match verified origin.");
+                    return;
                 }
-                // Save the settings and update the "initialized" status
+
+                // Preserve other settings keys while updating local_backend
+                settings = { ...fetchedSettings, local_backend: backendUrl.origin + backendUrl.pathname };
                 await chrome.storage.sync.set({ settings, initialized: true });
                 toggleInitializedStatus();
                 init();

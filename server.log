@@ -1,0 +1,10 @@
+127.0.0.1 - - [27/Feb/2026 19:15:06] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [27/Feb/2026 19:15:06] "GET /main.js HTTP/1.1" 200 -
+127.0.0.1 - - [27/Feb/2026 19:15:07] code 404, message File not found
+127.0.0.1 - - [27/Feb/2026 19:15:07] "GET /settings.json HTTP/1.1" 404 -
+127.0.0.1 - - [27/Feb/2026 19:15:55] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [27/Feb/2026 19:15:55] "GET /main.js HTTP/1.1" 200 -
+127.0.0.1 - - [27/Feb/2026 19:15:56] "GET /settings.json HTTP/1.1" 200 -
+127.0.0.1 - - [27/Feb/2026 19:16:17] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [27/Feb/2026 19:16:17] "GET /main.js HTTP/1.1" 200 -
+127.0.0.1 - - [27/Feb/2026 19:16:17] "GET /settings.json HTTP/1.1" 200 -
