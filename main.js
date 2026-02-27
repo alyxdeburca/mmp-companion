@@ -6,21 +6,20 @@ let settings = null; // Declare global settings variable
 
 // Define the init function early
 const init = async () => {
-    console.log("Current settings:", settings);
-    const tabs = await chrome.tabs.query({ active: true });
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
 
     // Check for the "MMP - Maker Management Platform" tab
-    for (const i in tabs) {
-        if (tabs[i].title === "MMP - Maker Management Platform") {
-            const url = new URL(tabs[i].url);
+    for (const tab of tabs) {
+        if (tab.title === "MMP - Maker Management Platform") {
+            const url = new URL(tab.url);
             await showInit(url.origin);
             return;
         }
     }
 
     // Handle supported sites
-    for (const i in tabs) {
-        const url = new URL(tabs[i].url);
+    for (const tab of tabs) {
+        const url = new URL(tab.url);
         if (supportedSites.includes(url.origin)) {
             await actions.show[url.origin]();
         }
@@ -61,7 +60,6 @@ const showInit = async (origin) => {
             }
 
             const fetchedSettings = await response.json();
-            console.log("Fetched settings:", fetchedSettings);
 
             // Handle both local_backend and localBackend
             settings = fetchedSettings.local_backend
@@ -74,7 +72,6 @@ const showInit = async (origin) => {
                 }
                 // Save the settings and update the "initialized" status
                 await chrome.storage.sync.set({ settings, initialized: true });
-                console.log("Settings saved to chrome storage:", settings);
                 toggleInitializedStatus();
                 init();
             } else {
@@ -101,9 +98,9 @@ actions.show['https://makerworld.com'] = async () => {
     const msgCmp = document.getElementById("mkw-msg");
     const importCMP = document.getElementById("mkw-import");
 
-    const tabs = await chrome.tabs.query({ active: true });
-    for (const i in tabs) {
-        const url = new URL(tabs[i].url);
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    for (const tab of tabs) {
+        const url = new URL(tab.url);
         if (url.origin === 'https://makerworld.com' && !url.pathname.includes("/models/")) {
             msgCmp.textContent = "This is not an importable project page.";
             importCMP.style.display = 'none';
@@ -111,12 +108,11 @@ actions.show['https://makerworld.com'] = async () => {
     }
     importCMP.onclick = async () => {
         const cookies = await chrome.cookies.getAll({ domain: "makerworld.com" });
-        console.log(cookies);
-        const tabs = await chrome.tabs.query({ active: true });
-        for (const i in tabs) {
-            const url = new URL(tabs[i].url);
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        for (const tab of tabs) {
+            const url = new URL(tab.url);
             if (url.origin === 'https://makerworld.com') {
-                const payload = { cookies, url: tabs[i].url };
+                const payload = { cookies, url: tab.url };
                 const response = await send(payload);
                 if (!response.ok) {
                     const data = await response.json();
@@ -135,20 +131,20 @@ actions.show['https://www.thingiverse.com'] = async () => {
     const msgCmp = document.getElementById("tv-msg");
     const importCMP = document.getElementById("tv-import");
 
-    const tabs = await chrome.tabs.query({ active: true });
-    for (const i in tabs) {
-        const url = new URL(tabs[i].url);
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    for (const tab of tabs) {
+        const url = new URL(tab.url);
         if (url.origin === 'https://www.thingiverse.com' && !url.pathname.includes("/thing:")) {
             msgCmp.textContent = "This is not an importable project page.";
             importCMP.style.display = 'none';
         }
     }
     importCMP.onclick = async () => {
-        const tabs = await chrome.tabs.query({ active: true });
-        for (const i in tabs) {
-            const url = new URL(tabs[i].url);
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        for (const tab of tabs) {
+            const url = new URL(tab.url);
             if (url.origin === 'https://www.thingiverse.com') {
-                const payload = { url: tabs[i].url };
+                const payload = { url: tab.url };
                 const response = await send(payload);
                 if (!response.ok) {
                     const data = await response.json();
@@ -164,7 +160,6 @@ actions.show['https://www.thingiverse.com'] = async () => {
 
 // Fetch the settings from chrome storage
 const mmpBackendStorage = await chrome.storage.sync.get("settings");
-console.log("Backend storage settings:", mmpBackendStorage);
 
 if (mmpBackendStorage.settings) {
     settings = mmpBackendStorage.settings;
