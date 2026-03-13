@@ -28,6 +28,12 @@ const init = async () => {
 
 // Send a POST request with a payload
 const send = async (payload) => {
+    if (!settings || !settings.local_backend) {
+        return {
+            ok: false,
+            json: () => Promise.resolve({ message: "Extension not initialized" })
+        };
+    }
     return await fetch(settings.local_backend + "/downloader/fetch", {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -62,14 +68,19 @@ const showInit = async (origin) => {
             const fetchedSettings = await response.json();
 
             // Handle both local_backend and localBackend
-            settings = fetchedSettings.local_backend
-                ? fetchedSettings
-                : { ...fetchedSettings, local_backend: fetchedSettings.localBackend };
+            const rawBackend = fetchedSettings.local_backend || fetchedSettings.localBackend;
 
-            if (settings.local_backend && typeof settings.local_backend === "string") {
-                if (settings.local_backend.startsWith("/")) {
-                    settings.local_backend = origin + settings.local_backend;
+            if (rawBackend && typeof rawBackend === "string") {
+                const backendUrl = new URL(rawBackend, origin);
+
+                // Strict origin validation to prevent 'Verified Origin Bypass'
+                if (backendUrl.origin !== new URL(origin).origin) {
+                    console.error("Security Error: Backend origin does not match initialization origin.");
+                    return;
                 }
+
+                settings = { ...fetchedSettings, local_backend: backendUrl.toString() };
+
                 // Save the settings and update the "initialized" status
                 await chrome.storage.sync.set({ settings, initialized: true });
                 toggleInitializedStatus();
