@@ -9,3 +9,8 @@
 **Vulnerability:** The extension used `.innerHTML` to display messages from external APIs and status updates.
 **Learning:** If the backend or a spoofed backend provides malicious HTML/script in its response, it could execute in the context of the extension, which has broad permissions (cookies, storage, etc.).
 **Prevention:** Use `.textContent` instead of `.innerHTML` when rendering data that does not explicitly require HTML formatting, especially when the data source is external or configurable.
+
+## 2025-02-23 - Verified Origin Bypass in Configuration
+**Vulnerability:** The extension fetched a `settings.json` from a verified origin but did not validate that the `local_backend` URL within that file pointed to the same origin.
+**Learning:** An attacker-controlled or compromised origin could use its `settings.json` to redirect the extension's data (including sensitive cookies) to a completely different, malicious origin.
+**Prevention:** When a configuration file specifies a backend endpoint, resolve the URL and strictly validate its origin against the trusted source origin.

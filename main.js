@@ -28,7 +28,20 @@ const init = async () => {
 
 // Send a POST request with a payload
 const send = async (payload) => {
-    return await fetch(settings.local_backend + "/downloader/fetch", {
+    // Fail-secure check: Ensure settings and local_backend are defined before fetch
+    if (!settings || !settings.local_backend) {
+        console.error("Error: local_backend is not initialized.");
+        return {
+            ok: false,
+            status: 400,
+            json: async () => ({ message: "Extension not initialized" })
+        };
+    }
+
+    // Sanitize the backend URL to remove trailing slashes
+    const sanitizedBackend = settings.local_backend.replace(/\/$/, '');
+
+    return await fetch(sanitizedBackend + "/downloader/fetch", {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
@@ -61,15 +74,25 @@ const showInit = async (origin) => {
 
             const fetchedSettings = await response.json();
 
-            // Handle both local_backend and localBackend
-            settings = fetchedSettings.local_backend
+            // Handle both local_backend and localBackend, standardizing on local_backend
+            const normalizedSettings = fetchedSettings.local_backend
                 ? fetchedSettings
                 : { ...fetchedSettings, local_backend: fetchedSettings.localBackend };
 
-            if (settings.local_backend && typeof settings.local_backend === "string") {
-                if (settings.local_backend.startsWith("/")) {
-                    settings.local_backend = origin + settings.local_backend;
+            if (normalizedSettings.local_backend && typeof normalizedSettings.local_backend === "string") {
+                // Resolve the backend URL against the verified origin
+                const backendUrl = new URL(normalizedSettings.local_backend, origin);
+
+                // CRITICAL SECURITY CHECK: Ensure the backend's origin matches the verified origin
+                // This prevents "Verified Origin Bypass" where a malicious settings.json
+                // redirects data to an attacker-controlled origin.
+                if (backendUrl.origin !== new URL(origin).origin) {
+                    console.error("Security Error: Backend origin mismatch.");
+                    return;
                 }
+
+                settings = { ...normalizedSettings, local_backend: backendUrl.toString() };
+
                 // Save the settings and update the "initialized" status
                 await chrome.storage.sync.set({ settings, initialized: true });
                 toggleInitializedStatus();
