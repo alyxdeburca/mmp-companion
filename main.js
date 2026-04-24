@@ -28,7 +28,18 @@ const init = async () => {
 
 // Send a POST request with a payload
 const send = async (payload) => {
-    return await fetch(settings.local_backend + "/downloader/fetch", {
+    if (!settings || !settings.local_backend) {
+        return new Response(JSON.stringify({ message: "Extension not initialized" }), {
+            status: 400,
+            headers: { 'content-type': 'application/json' }
+        });
+    }
+
+    const backendUrl = settings.local_backend.endsWith('/')
+        ? settings.local_backend.slice(0, -1)
+        : settings.local_backend;
+
+    return await fetch(backendUrl + "/downloader/fetch", {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
@@ -62,14 +73,19 @@ const showInit = async (origin) => {
             const fetchedSettings = await response.json();
 
             // Handle both local_backend and localBackend
-            settings = fetchedSettings.local_backend
-                ? fetchedSettings
-                : { ...fetchedSettings, local_backend: fetchedSettings.localBackend };
+            const rawBackend = fetchedSettings.local_backend || fetchedSettings.localBackend;
 
-            if (settings.local_backend && typeof settings.local_backend === "string") {
-                if (settings.local_backend.startsWith("/")) {
-                    settings.local_backend = origin + settings.local_backend;
+            if (rawBackend && typeof rawBackend === "string") {
+                const backendUrl = new URL(rawBackend, origin);
+
+                // Strict origin validation to prevent 'Verified Origin Bypass'
+                if (backendUrl.origin !== new URL(origin).origin) {
+                    console.error("Security Error: Backend origin mismatch.");
+                    return;
                 }
+
+                settings = { ...fetchedSettings, local_backend: backendUrl.toString() };
+
                 // Save the settings and update the "initialized" status
                 await chrome.storage.sync.set({ settings, initialized: true });
                 toggleInitializedStatus();
