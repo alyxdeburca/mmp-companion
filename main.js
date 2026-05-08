@@ -28,7 +28,19 @@ const init = async () => {
 
 // Send a POST request with a payload
 const send = async (payload) => {
-    return await fetch(settings.local_backend + "/downloader/fetch", {
+    // Fail-secure: Ensure settings and local_backend are defined before proceeding
+    if (!settings || !settings.local_backend) {
+        console.error("Attempted to send data but extension is not initialized or missing local_backend.");
+        return new Response(JSON.stringify({ message: "Extension not initialized" }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    // Sanitize backend URL by removing trailing slashes to prevent double-slashes in the path
+    const sanitizedBackend = settings.local_backend.replace(/\/+$/, "");
+
+    return await fetch(sanitizedBackend + "/downloader/fetch", {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
@@ -61,19 +73,30 @@ const showInit = async (origin) => {
 
             const fetchedSettings = await response.json();
 
-            // Handle both local_backend and localBackend
-            settings = fetchedSettings.local_backend
-                ? fetchedSettings
-                : { ...fetchedSettings, local_backend: fetchedSettings.localBackend };
+            // Handle both local_backend and localBackend, standardizing on local_backend
+            const rawBackend = fetchedSettings.local_backend || fetchedSettings.localBackend;
 
-            if (settings.local_backend && typeof settings.local_backend === "string") {
-                if (settings.local_backend.startsWith("/")) {
-                    settings.local_backend = origin + settings.local_backend;
+            if (rawBackend && typeof rawBackend === "string") {
+                try {
+                    // Resolve the backend URL against the verified origin
+                    const backendUrl = new URL(rawBackend, origin);
+
+                    // Security check: ensure the backend origin matches the verified origin to prevent bypass
+                    if (backendUrl.origin !== new URL(origin).origin) {
+                        console.error("Security Error: Backend origin mismatch. Potential Verified Origin Bypass blocked.");
+                        return;
+                    }
+
+                    // Update global settings with validated and absolute URL
+                    settings = { ...fetchedSettings, local_backend: backendUrl.href };
+
+                    // Save the settings and update the "initialized" status
+                    await chrome.storage.sync.set({ settings, initialized: true });
+                    toggleInitializedStatus();
+                    init();
+                } catch (urlError) {
+                    console.error("Invalid local_backend URL in settings.json:", urlError);
                 }
-                // Save the settings and update the "initialized" status
-                await chrome.storage.sync.set({ settings, initialized: true });
-                toggleInitializedStatus();
-                init();
             } else {
                 console.error("Invalid or missing local_backend in settings.json.");
             }
