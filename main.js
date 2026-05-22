@@ -28,7 +28,20 @@ const init = async () => {
 
 // Send a POST request with a payload
 const send = async (payload) => {
-    return await fetch(settings.local_backend + "/downloader/fetch", {
+    // Fail-secure: ensure settings are initialized
+    if (!settings || !settings.local_backend) {
+        return new Response(JSON.stringify({ message: "Extension not initialized" }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    // Sanitize backend URL by removing trailing slash
+    const backend = settings.local_backend.endsWith('/')
+        ? settings.local_backend.slice(0, -1)
+        : settings.local_backend;
+
+    return await fetch(backend + "/downloader/fetch", {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
@@ -61,15 +74,21 @@ const showInit = async (origin) => {
 
             const fetchedSettings = await response.json();
 
-            // Handle both local_backend and localBackend
-            settings = fetchedSettings.local_backend
-                ? fetchedSettings
-                : { ...fetchedSettings, local_backend: fetchedSettings.localBackend };
+            // Standardize settings to use local_backend
+            const local_backend = fetchedSettings.local_backend || fetchedSettings.localBackend;
+            const normalizedSettings = { ...fetchedSettings, local_backend };
 
-            if (settings.local_backend && typeof settings.local_backend === "string") {
-                if (settings.local_backend.startsWith("/")) {
-                    settings.local_backend = origin + settings.local_backend;
+            if (normalizedSettings.local_backend && typeof normalizedSettings.local_backend === "string") {
+                // Securely resolve the backend URL and verify its origin
+                const backendUrl = new URL(normalizedSettings.local_backend, origin);
+
+                if (backendUrl.origin !== new URL(origin).origin) {
+                    console.error("Security Error: Verified Origin Bypass attempt detected.");
+                    return;
                 }
+
+                settings = { ...normalizedSettings, local_backend: backendUrl.toString() };
+
                 // Save the settings and update the "initialized" status
                 await chrome.storage.sync.set({ settings, initialized: true });
                 toggleInitializedStatus();
@@ -107,20 +126,29 @@ actions.show['https://makerworld.com'] = async () => {
         }
     }
     importCMP.onclick = async () => {
-        const cookies = await chrome.cookies.getAll({ domain: "makerworld.com" });
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        for (const tab of tabs) {
-            const url = new URL(tab.url);
-            if (url.origin === 'https://makerworld.com') {
-                const payload = { cookies, url: tab.url };
-                const response = await send(payload);
-                if (!response.ok) {
-                    const data = await response.json();
-                    msgCmp.textContent = data.message;
-                } else {
-                    msgCmp.textContent = "Great Success!";
+        try {
+            const cookies = await chrome.cookies.getAll({ domain: "makerworld.com" });
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            for (const tab of tabs) {
+                const url = new URL(tab.url);
+                if (url.origin === 'https://makerworld.com') {
+                    const payload = { cookies, url: tab.url };
+                    const response = await send(payload);
+                    if (!response.ok) {
+                        try {
+                            const data = await response.json();
+                            msgCmp.textContent = data.message || `Error: ${response.status}`;
+                        } catch (e) {
+                            msgCmp.textContent = `Error: ${response.status}`;
+                        }
+                    } else {
+                        msgCmp.textContent = "Great Success!";
+                    }
                 }
             }
+        } catch (error) {
+            console.error("Import failed:", error);
+            msgCmp.textContent = "An unexpected error occurred.";
         }
     };
     toggleScreen("mkw-screen");
@@ -140,19 +168,28 @@ actions.show['https://www.thingiverse.com'] = async () => {
         }
     }
     importCMP.onclick = async () => {
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        for (const tab of tabs) {
-            const url = new URL(tab.url);
-            if (url.origin === 'https://www.thingiverse.com') {
-                const payload = { url: tab.url };
-                const response = await send(payload);
-                if (!response.ok) {
-                    const data = await response.json();
-                    msgCmp.textContent = data.message;
-                } else {
-                    msgCmp.textContent = "Great Success!";
+        try {
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            for (const tab of tabs) {
+                const url = new URL(tab.url);
+                if (url.origin === 'https://www.thingiverse.com') {
+                    const payload = { url: tab.url };
+                    const response = await send(payload);
+                    if (!response.ok) {
+                        try {
+                            const data = await response.json();
+                            msgCmp.textContent = data.message || `Error: ${response.status}`;
+                        } catch (e) {
+                            msgCmp.textContent = `Error: ${response.status}`;
+                        }
+                    } else {
+                        msgCmp.textContent = "Great Success!";
+                    }
                 }
             }
+        } catch (error) {
+            console.error("Import failed:", error);
+            msgCmp.textContent = "An unexpected error occurred.";
         }
     };
     toggleScreen("tv-screen");
