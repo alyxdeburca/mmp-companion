@@ -28,6 +28,12 @@ const init = async () => {
 
 // Send a POST request with a payload
 const send = async (payload) => {
+    if (!settings || !settings.local_backend) {
+        return new Response(JSON.stringify({ message: "Extension not initialized" }), {
+            status: 400,
+            headers: { 'content-type': 'application/json' }
+        });
+    }
     return await fetch(settings.local_backend + "/downloader/fetch", {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -62,14 +68,25 @@ const showInit = async (origin) => {
             const fetchedSettings = await response.json();
 
             // Handle both local_backend and localBackend
-            settings = fetchedSettings.local_backend
+            const normalizedSettings = fetchedSettings.local_backend
                 ? fetchedSettings
                 : { ...fetchedSettings, local_backend: fetchedSettings.localBackend };
 
-            if (settings.local_backend && typeof settings.local_backend === "string") {
-                if (settings.local_backend.startsWith("/")) {
-                    settings.local_backend = origin + settings.local_backend;
+            if (normalizedSettings.local_backend && typeof normalizedSettings.local_backend === "string") {
+                const backendUrl = new URL(normalizedSettings.local_backend, origin);
+
+                // Security: ensure backend origin matches verified origin
+                if (backendUrl.origin !== new URL(origin).origin) {
+                    console.error("Security Error: Backend origin mismatch.");
+                    return;
                 }
+
+                // Sanitize and update global settings
+                settings = {
+                    ...normalizedSettings,
+                    local_backend: backendUrl.href.replace(/\/+$/, "")
+                };
+
                 // Save the settings and update the "initialized" status
                 await chrome.storage.sync.set({ settings, initialized: true });
                 toggleInitializedStatus();
@@ -107,20 +124,25 @@ actions.show['https://makerworld.com'] = async () => {
         }
     }
     importCMP.onclick = async () => {
-        const cookies = await chrome.cookies.getAll({ domain: "makerworld.com" });
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        for (const tab of tabs) {
-            const url = new URL(tab.url);
-            if (url.origin === 'https://makerworld.com') {
-                const payload = { cookies, url: tab.url };
-                const response = await send(payload);
-                if (!response.ok) {
-                    const data = await response.json();
-                    msgCmp.textContent = data.message;
-                } else {
-                    msgCmp.textContent = "Great Success!";
+        try {
+            const cookies = await chrome.cookies.getAll({ domain: "makerworld.com" });
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            for (const tab of tabs) {
+                const url = new URL(tab.url);
+                if (url.origin === 'https://makerworld.com') {
+                    const payload = { cookies, url: tab.url };
+                    const response = await send(payload);
+                    if (!response.ok) {
+                        const data = await response.json();
+                        msgCmp.textContent = data.message || "An error occurred during import.";
+                    } else {
+                        msgCmp.textContent = "Great Success!";
+                    }
                 }
             }
+        } catch (error) {
+            console.error("Import failed:", error);
+            msgCmp.textContent = "Import failed. Please check the console for details.";
         }
     };
     toggleScreen("mkw-screen");
@@ -140,19 +162,24 @@ actions.show['https://www.thingiverse.com'] = async () => {
         }
     }
     importCMP.onclick = async () => {
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        for (const tab of tabs) {
-            const url = new URL(tab.url);
-            if (url.origin === 'https://www.thingiverse.com') {
-                const payload = { url: tab.url };
-                const response = await send(payload);
-                if (!response.ok) {
-                    const data = await response.json();
-                    msgCmp.textContent = data.message;
-                } else {
-                    msgCmp.textContent = "Great Success!";
+        try {
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            for (const tab of tabs) {
+                const url = new URL(tab.url);
+                if (url.origin === 'https://www.thingiverse.com') {
+                    const payload = { url: tab.url };
+                    const response = await send(payload);
+                    if (!response.ok) {
+                        const data = await response.json();
+                        msgCmp.textContent = data.message || "An error occurred during import.";
+                    } else {
+                        msgCmp.textContent = "Great Success!";
+                    }
                 }
             }
+        } catch (error) {
+            console.error("Import failed:", error);
+            msgCmp.textContent = "Import failed. Please check the console for details.";
         }
     };
     toggleScreen("tv-screen");
