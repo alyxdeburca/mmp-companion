@@ -28,7 +28,16 @@ const init = async () => {
 
 // Send a POST request with a payload
 const send = async (payload) => {
-    return await fetch(settings.local_backend + "/downloader/fetch", {
+    if (!settings || !settings.local_backend) {
+        return new Response(JSON.stringify({ message: "Extension not initialized correctly." }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+    const backendUrl = settings.local_backend.endsWith('/')
+        ? settings.local_backend.slice(0, -1)
+        : settings.local_backend;
+    return await fetch(backendUrl + "/downloader/fetch", {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
@@ -61,22 +70,34 @@ const showInit = async (origin) => {
 
             const fetchedSettings = await response.json();
 
-            // Handle both local_backend and localBackend
-            settings = fetchedSettings.local_backend
-                ? fetchedSettings
-                : { ...fetchedSettings, local_backend: fetchedSettings.localBackend };
-
-            if (settings.local_backend && typeof settings.local_backend === "string") {
-                if (settings.local_backend.startsWith("/")) {
-                    settings.local_backend = origin + settings.local_backend;
-                }
-                // Save the settings and update the "initialized" status
-                await chrome.storage.sync.set({ settings, initialized: true });
-                toggleInitializedStatus();
-                init();
-            } else {
+            // Standardize local_backend from fetched settings
+            const localPath = fetchedSettings.local_backend || fetchedSettings.localBackend;
+            if (!localPath || typeof localPath !== "string") {
                 console.error("Invalid or missing local_backend in settings.json.");
+                return;
             }
+
+            // Resolve the backend URL using the verified origin as base
+            const backendUrl = new URL(localPath, origin);
+
+            // Strictly validate that the resolved backend origin matches the verified source origin
+            if (backendUrl.origin !== new URL(origin).origin) {
+                console.error("Security Error: Backend origin mismatch.");
+                return;
+            }
+
+            // Update global settings, preserving other keys and standardizing local_backend
+            settings = {
+                ...fetchedSettings,
+                local_backend: backendUrl.toString().endsWith('/')
+                    ? backendUrl.toString().slice(0, -1)
+                    : backendUrl.toString()
+            };
+
+            // Save the settings and update the "initialized" status
+            await chrome.storage.sync.set({ settings, initialized: true });
+            toggleInitializedStatus();
+            init();
         } catch (error) {
             console.error("Error processing settings.json:", error);
         }
@@ -107,20 +128,25 @@ actions.show['https://makerworld.com'] = async () => {
         }
     }
     importCMP.onclick = async () => {
-        const cookies = await chrome.cookies.getAll({ domain: "makerworld.com" });
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        for (const tab of tabs) {
-            const url = new URL(tab.url);
-            if (url.origin === 'https://makerworld.com') {
-                const payload = { cookies, url: tab.url };
-                const response = await send(payload);
-                if (!response.ok) {
-                    const data = await response.json();
-                    msgCmp.textContent = data.message;
-                } else {
-                    msgCmp.textContent = "Great Success!";
+        try {
+            const cookies = await chrome.cookies.getAll({ domain: "makerworld.com" });
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            for (const tab of tabs) {
+                const url = new URL(tab.url);
+                if (url.origin === 'https://makerworld.com') {
+                    const payload = { cookies, url: tab.url };
+                    const response = await send(payload);
+                    if (!response.ok) {
+                        const data = await response.json();
+                        msgCmp.textContent = data.message || "An error occurred during import.";
+                    } else {
+                        msgCmp.textContent = "Great Success!";
+                    }
                 }
             }
+        } catch (error) {
+            console.error("MakerWorld import error:", error);
+            msgCmp.textContent = "Failed to initiate import. Please try again.";
         }
     };
     toggleScreen("mkw-screen");
@@ -140,19 +166,24 @@ actions.show['https://www.thingiverse.com'] = async () => {
         }
     }
     importCMP.onclick = async () => {
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        for (const tab of tabs) {
-            const url = new URL(tab.url);
-            if (url.origin === 'https://www.thingiverse.com') {
-                const payload = { url: tab.url };
-                const response = await send(payload);
-                if (!response.ok) {
-                    const data = await response.json();
-                    msgCmp.textContent = data.message;
-                } else {
-                    msgCmp.textContent = "Great Success!";
+        try {
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            for (const tab of tabs) {
+                const url = new URL(tab.url);
+                if (url.origin === 'https://www.thingiverse.com') {
+                    const payload = { url: tab.url };
+                    const response = await send(payload);
+                    if (!response.ok) {
+                        const data = await response.json();
+                        msgCmp.textContent = data.message || "An error occurred during import.";
+                    } else {
+                        msgCmp.textContent = "Great Success!";
+                    }
                 }
             }
+        } catch (error) {
+            console.error("Thingiverse import error:", error);
+            msgCmp.textContent = "Failed to initiate import. Please try again.";
         }
     };
     toggleScreen("tv-screen");
