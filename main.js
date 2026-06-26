@@ -28,7 +28,17 @@ const init = async () => {
 
 // Send a POST request with a payload
 const send = async (payload) => {
-    return await fetch(settings.local_backend + "/downloader/fetch", {
+    if (!settings || !settings.local_backend) {
+        return new Response(JSON.stringify({ message: "Extension not initialized" }), {
+            status: 400,
+            headers: { 'content-type': 'application/json' }
+        });
+    }
+
+    // Sanitize backend URL by removing trailing slashes
+    const backendUrl = settings.local_backend.replace(/\/+$/, '');
+
+    return await fetch(backendUrl + "/downloader/fetch", {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
@@ -62,14 +72,22 @@ const showInit = async (origin) => {
             const fetchedSettings = await response.json();
 
             // Handle both local_backend and localBackend
-            settings = fetchedSettings.local_backend
-                ? fetchedSettings
-                : { ...fetchedSettings, local_backend: fetchedSettings.localBackend };
+            const rawBackend = fetchedSettings.local_backend || fetchedSettings.localBackend;
 
-            if (settings.local_backend && typeof settings.local_backend === "string") {
-                if (settings.local_backend.startsWith("/")) {
-                    settings.local_backend = origin + settings.local_backend;
+            if (rawBackend && typeof rawBackend === "string") {
+                const backendUrl = new URL(rawBackend, origin);
+
+                // Security check: Ensure the backend origin matches the verified origin
+                if (backendUrl.origin !== new URL(origin).origin) {
+                    console.error("Verified Origin Bypass blocked: Backend origin does not match source origin.");
+                    return;
                 }
+
+                // Normalize URL by removing trailing slashes
+                const validatedUrl = backendUrl.toString().replace(/\/+$/, '');
+
+                settings = { ...fetchedSettings, local_backend: validatedUrl };
+
                 // Save the settings and update the "initialized" status
                 await chrome.storage.sync.set({ settings, initialized: true });
                 toggleInitializedStatus();
@@ -107,20 +125,25 @@ actions.show['https://makerworld.com'] = async () => {
         }
     }
     importCMP.onclick = async () => {
-        const cookies = await chrome.cookies.getAll({ domain: "makerworld.com" });
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        for (const tab of tabs) {
-            const url = new URL(tab.url);
-            if (url.origin === 'https://makerworld.com') {
-                const payload = { cookies, url: tab.url };
-                const response = await send(payload);
-                if (!response.ok) {
-                    const data = await response.json();
-                    msgCmp.textContent = data.message;
-                } else {
-                    msgCmp.textContent = "Great Success!";
+        try {
+            const cookies = await chrome.cookies.getAll({ domain: "makerworld.com" });
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            for (const tab of tabs) {
+                const url = new URL(tab.url);
+                if (url.origin === 'https://makerworld.com') {
+                    const payload = { cookies, url: tab.url };
+                    const response = await send(payload);
+                    if (!response.ok) {
+                        const data = await response.json();
+                        msgCmp.textContent = data.message || "Import failed. Please check MMP logs.";
+                    } else {
+                        msgCmp.textContent = "Great Success!";
+                    }
                 }
             }
+        } catch (error) {
+            console.error("MakerWorld import error:", error);
+            msgCmp.textContent = "Import failed. Please check your connection and MMP logs.";
         }
     };
     toggleScreen("mkw-screen");
@@ -140,19 +163,24 @@ actions.show['https://www.thingiverse.com'] = async () => {
         }
     }
     importCMP.onclick = async () => {
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        for (const tab of tabs) {
-            const url = new URL(tab.url);
-            if (url.origin === 'https://www.thingiverse.com') {
-                const payload = { url: tab.url };
-                const response = await send(payload);
-                if (!response.ok) {
-                    const data = await response.json();
-                    msgCmp.textContent = data.message;
-                } else {
-                    msgCmp.textContent = "Great Success!";
+        try {
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            for (const tab of tabs) {
+                const url = new URL(tab.url);
+                if (url.origin === 'https://www.thingiverse.com') {
+                    const payload = { url: tab.url };
+                    const response = await send(payload);
+                    if (!response.ok) {
+                        const data = await response.json();
+                        msgCmp.textContent = data.message || "Import failed. Please check MMP logs.";
+                    } else {
+                        msgCmp.textContent = "Great Success!";
+                    }
                 }
             }
+        } catch (error) {
+            console.error("Thingiverse import error:", error);
+            msgCmp.textContent = "Import failed. Please check your connection and MMP logs.";
         }
     };
     toggleScreen("tv-screen");
