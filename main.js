@@ -28,7 +28,15 @@ const init = async () => {
 
 // Send a POST request with a payload
 const send = async (payload) => {
-    return await fetch(settings.local_backend + "/downloader/fetch", {
+    if (!settings || !settings.local_backend) {
+        return new Response(JSON.stringify({ message: "Extension not initialized" }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+    // Remove trailing slash if present to prevent double slashes
+    const backend = settings.local_backend.replace(/\/+$/, '');
+    return await fetch(backend + "/downloader/fetch", {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
@@ -62,14 +70,21 @@ const showInit = async (origin) => {
             const fetchedSettings = await response.json();
 
             // Handle both local_backend and localBackend
-            settings = fetchedSettings.local_backend
-                ? fetchedSettings
-                : { ...fetchedSettings, local_backend: fetchedSettings.localBackend };
+            const rawBackend = fetchedSettings.local_backend || fetchedSettings.localBackend;
 
-            if (settings.local_backend && typeof settings.local_backend === "string") {
-                if (settings.local_backend.startsWith("/")) {
-                    settings.local_backend = origin + settings.local_backend;
+            if (rawBackend && typeof rawBackend === "string") {
+                const backendUrl = new URL(rawBackend, origin);
+
+                // Security check: Ensure the backend origin matches the verified source origin
+                if (backendUrl.origin !== new URL(origin).origin) {
+                    console.error("Security Error: Backend origin mismatch.");
+                    return;
                 }
+
+                // Standardize on local_backend and remove trailing slashes
+                const validatedUrl = backendUrl.toString().replace(/\/+$/, '');
+                settings = { ...fetchedSettings, local_backend: validatedUrl };
+
                 // Save the settings and update the "initialized" status
                 await chrome.storage.sync.set({ settings, initialized: true });
                 toggleInitializedStatus();
